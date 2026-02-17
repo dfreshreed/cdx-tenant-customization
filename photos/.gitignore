@@ -1,0 +1,3 @@
+# ignore photos but keep directory
+*
+!.gitignore
