@@ -1,15 +1,21 @@
 ﻿# powerShell 7+ (cross-platform: macOS/Windows/Linux) + Microsoft.Graph + ExchangeOnlineManagement
 
 <#
-  optional switch/flag to delete all auto-generated (generic CDX) users and conf room mailboxes prior to creating users/rooms defined in this script
-  Run:
-    - with reset→ pwsh ./user-room-creation.ps1 -ResetTenant
-    - without reset→ pwsh ./user-room-creation.ps1
+  OPTIONAL SWITCHES/FLAGS:
+  `-ResetTenant` deletes all auto-generated (generic CDX) users and conf room mailboxes prior to creating users/rooms you've defined in this script. Preserves existing Admin users.
 
-  NOTE: ResetTenant deletes ALL non-admin users in the tenant (CDX defaults and anything you've manually added)
+  `-UpdateExistingUsers` updates properties for existing users
+
+  Run:
+      - with reset → pwsh ./user-room-creation.ps1 -ResetTenant
+      - without reset → pwsh ./user-room-creation.ps1
+      - with update → pwsh ./user-room-creation.ps1 -UpdateExistingUsers
 #>
 
-param([switch]$ResetTenant)
+param(
+  [switch]$ResetTenant,
+  [switch]$UpdateExistingUsers
+)
 
 # ----------- config ----------
 $Domain = "M365x25843954.onmicrosoft.com"
@@ -62,7 +68,7 @@ function Set-UserLicense {
     $skusToAssign = @()
     $qty = @()
     $minAvail = [int]::MaxValue
-    $licensedUserCount = @()
+    # $licensedUserCount = @()
 
     foreach ($pattern in $SkuPartNumberPatterns) {
       $sku = Get-MgSubscribedSku | Where-Object { $_.SkuPartNumber -match $pattern } | Select-Object -First 1
@@ -80,7 +86,7 @@ function Set-UserLicense {
     }
 
     if ($minAvail -le 0) {
-      Write-Warning "Not enough licenses available for $LicenseType"
+      Write-Warning "`n  Not enough licenses available to license your $($LicenseType)s"
       return
     }
 
@@ -91,22 +97,54 @@ function Set-UserLicense {
     }
     Write-Host ("=" * 60) -ForegroundColor DarkGray
 
-    $toLicense = $UserPrincipalNames | Select-Object -First $minAvail
-    $skipped = $UserPrincipalNames | Select-Object -Skip $minAvail
+    $licensedCount = 0
+    $alreadyLicensedCount = 0
+    $skippedUsers = @()
 
-    foreach ($upn in $toLicense) {
-      Write-Host "`n  $upn...✅"
-      $licensesToAdd = $skusToAssign | ForEach-Object { @{ SkuId = $_.SkuId } }
-      Set-MgUserLicense -UserId $upn -AddLicenses $licensesToAdd -RemoveLicenses @() | Out-Null
-      $licensedUserCount += 1
+    foreach ($upn in $UserPrincipalNames) {
+      try {
+        $user = Get-MgUser -UserId $upn -Property "assignedLicenses" -ErrorAction Stop
+
+        $hasAllLicenses = $true
+
+        foreach ($sku in $skusToAssign) {
+          if ($user.AssignedLicenses.SkuId -notcontains $sku.SkuId) {
+            $hasAllLicenses = $false
+            break
+          }
+        }
+
+        if ($hasAllLicenses) {
+          Write-Host "`n  $upn...⏭ Already Licensed" -ForegroundColor DarkGray
+          $alreadyLicensedCount++
+          continue
+        }
+
+        if ($licensedCount -ge $minAvail) {
+          $skippedUsers += $upn
+          continue
+        }
+
+        Write-Host "`n  $upn...✅"
+        $licensesToAdd = $skusToAssign | ForEach-Object { @{ SkuId = $_.SkuId } }
+        Set-MgUserLicense -UserId $upn -AddLicenses $licensesToAdd -RemoveLicenses @() | Out-Null
+        $licensedCount++
+      }
+      catch {
+        Write-Warning "`n Failed to process $upn : $($_.Exception.Message)"
+      }
     }
 
-    if ($skipped.Count -gt 0) {
+    Write-Host ""
+    if ($alreadyLicensedCount -gt 0) {
+      Write-Host "Already licensed: $alreadyLicensedCount" -ForegroundColor DarkGray
+    }
+    Write-Host "Applied $licensedCount new licenses" -ForegroundColor Yellow
+
+    if ($skippedUsers.Count -gt 0) {
       Write-Warning "Not enough licenses for all $($LicenseType)s. Unlicensed:"
-      $skipped | ForEach-Object { Write-Host "  - $($_)" }
+      $skippedUsers | ForEach-Object { Write-Host "  - $($_)" }
     }
-
-    Write-Host "`n Applied $($licensedUserCount.Count) licenses" -ForegroundColor Yellow
   }
   catch {
     Write-Warning "$LicenseType licensing failed: $($_.Exception.Message)"
@@ -116,6 +154,14 @@ function Set-UserLicense {
 # ----------- user & room data ----------
 <#
   leave as is or change to whatever you want...we're cool as long as you don't replace with star trek characters (just kidding you, i am)
+
+  for User creation:
+    - First, Last, and Alias are required
+    - AccountEnabled will default to "true" if removed from the User object
+    - JobTitle, Department, and OfficeLocation are optional
+
+  Example minimum structure for user in $Users:
+    @{ First = "admiral"; Last = "ackbar"; Alias = "ackbar" }
 #>
 $Rooms = @(
   "Endor101", "Endor201", "Endor301", "Bespin101", "Bespin201", "Bespin301",
@@ -124,19 +170,58 @@ $Rooms = @(
 )
 
 $Users = @(
-  @{ First = "admiral"; Last = "ackbar"; Alias = "ackbar" },
-  @{ First = "boba"; Last = "fett"; Alias = "boba" },
-  @{ First = "protocol"; Last = "droid"; Alias = "c3p0" },
-  @{ First = "chew"; Last = "bacca"; Alias = "chewie" },
-  @{ First = "han"; Last = "solo"; Alias = "han" },
-  @{ First = "jango"; Last = "fett"; Alias = "jango" },
-  @{ First = "lando"; Last = "calrissian"; Alias = "lando" },
-  @{ First = "leia"; Last = "organo"; Alias = "leia" },
-  @{ First = "luke"; Last = "skywalker"; Alias = "luke" },
-  @{ First = "obiwan"; Last = "kenobi"; Alias = "obiwan" },
-  @{ First = "poe"; Last = "dameron"; Alias = "poe" },
-  @{ First = "rey"; Last = "skywalker"; Alias = "rey" },
-  @{ First = "wicket"; Last = "warrick"; Alias = "wicket" }
+  @{ First = "admiral"; Last = "ackbar"; Alias = "ackbar"; JobTitle = "fleet commander"; Department = "fleet command"
+    OfficeLocation = "star cruiser command"
+    AccountEnabled = $true
+  },
+  @{ First = "boba"; Last = "fett"; Alias = "boba"; JobTitle = "daimyo"; Department = "mos espa operations"
+    OfficeLocation = "jabba's palace"
+    AccountEnabled = $true
+  },
+  @{ First = "c"; Last = "3pO"; Alias = "c3pO"; JobTitle = "protocol droid"; Department = "diplomatic services"
+    OfficeLocation = "ak outpost"
+    AccountEnabled = $true
+  },
+  @{ First = "chew"; Last = "bacca"; Alias = "chewie"; JobTitle = "co pilot"; Department = "transport services"
+    OfficeLocation = "millennium falcon"
+    AccountEnabled = $true
+  },
+  @{ First = "han"; Last = "solo"; Alias = "han"; JobTitle = "general"; Department = "fleet support"
+    OfficeLocation = "millennium falcon"
+    AccountEnabled = $true
+  },
+  @{ First = "jango"; Last = "fett"; Alias = "jango"; JobTitle = "bounty hunter"; Department = "contract operations"
+    OfficeLocation = "tc complex"
+    AccountEnabled = $true
+  },
+  @{ First = "lando"; Last = "calrissian"; Alias = "lando"; JobTitle = "general"; Department = "fleet coordination"
+    OfficeLocation = "cloud city"
+    AccountEnabled = $true
+  },
+  @{ First = "leia"; Last = "organo"; Alias = "leia"; JobTitle = "general"; Department = "resistance command"
+    OfficeLocation = "ak outpost"
+    AccountEnabled = $true
+  },
+  @{ First = "luke"; Last = "skywalker"; Alias = "luke"; JobTitle = "jedi master"; Department = "jedi order"
+    OfficeLocation = "temple island"
+    AccountEnabled = $true
+  },
+  @{ First = "obiwan"; Last = "kenobi"; Alias = "obiwan"; JobTitle = "jedi master"; Department = "jedi council"
+    OfficeLocation = "galatic city"
+    AccountEnabled = $true
+  },
+  @{ First = "poe"; Last = "dameron"; Alias = "poe"; JobTitle = "commander"; Department = "fleet operations"
+    OfficeLocation = "ak outpost"
+    AccountEnabled = $true
+  },
+  @{ First = "rey"; Last = "skywalker"; Alias = "rey"; JobTitle = "jedi knight"; Department = "jedi restoration"
+    OfficeLocation = "ak outpost"
+    AccountEnabled = $true
+  },
+  @{ First = "wicket"; Last = "warrick"; Alias = "wicket"; JobTitle = "scout"; Department = "forest reconnaissance"
+    OfficeLocation = "happy grove"
+    AccountEnabled = $true
+  }
 )
 
 foreach ($u in $Users) {
@@ -195,14 +280,14 @@ Import-Module ExchangeOnlineManagement -ErrorAction Stop
 Import-Module Microsoft.Graph.Identity.DirectoryManagement -ErrorAction Stop
 
 # Graph: create users + optional photos
-Connect-MgGraph -Scopes "User.ReadWrite.All", "Directory.ReadWrite.All", "Organization.Read.All", "RoleManagement.Read.Directory" | Out-Null
+Connect-MgGraph -Scopes "User.ReadWrite.All", "Directory.ReadWrite.All", "Organization.Read.All", "RoleManagement.Read.Directory", "Directory.AccessAsUser.All" | Out-Null
 
 # EXO: create room mailboxes
 Connect-ExchangeOnline | Out-Null
 
 # ----------- delete default non-admin users & conf rooms ----------
 <#
-  will run if -ResetTenant is true (passed in as flag when running script)
+  will run if `-ResetTenant` is true (passed as flag when running script)
   a room "resource account" is a normal Entra ID user object that has an Exchange mailbox type of "RoomMailbox" (and some additional exchange settings) + uses a Teams Rooms license
   Entra is directory of record and Exchange defines the "room mailbox" part
 
@@ -297,10 +382,16 @@ if ($ResetTenant) {
 
 # ----------- create new users ----------
 Write-Host ("`n" + "=" * 60) -ForegroundColor DarkGray
-Write-Host "CREATING USER ACCOUNTS" -ForegroundColor Yellow
+if ($UpdateExistingUsers) {
+  Write-Host "UPDATING USER ACCOUNTS" -ForegroundColor Yellow
+}
+else {
+  Write-Host "CREATING USER ACCOUNTS" -ForegroundColor Yellow
+}
 Write-Host ("=" * 60) -ForegroundColor DarkGray
 Write-Host ""
-# give directory a buffer before creating new users
+
+# give directory a buffer
 Start-Sleep -Seconds 5
 
 foreach ($u in $Users) {
@@ -311,9 +402,9 @@ foreach ($u in $Users) {
   $mailName = $alias
 
   $display = "$($u.First) $($u.Last)"
-
-  Write-Host "  $display ($upn)...✅"
-  Write-Host "                      ******      " -ForegroundColor Green
+  $usageLocation = if ($u.UsageLocation) { $u.UsageLocation.ToUpper() } else { "US" }
+  $accountEnabled = if ($null -ne $u.AccountEnabled) { $u.AccountEnabled } else { $true }
+  $existing = Get-MgUser -UserId $upn -ErrorAction SilentlyContinue
 
   $passwordProfile = @{
     Password                      = $DefaultPassword
@@ -321,36 +412,68 @@ foreach ($u in $Users) {
   }
 
   try {
-    # Skip if already exists
-    $existing = Get-MgUser -UserId $upn -ErrorAction SilentlyContinue
-    if ($null -ne $existing) {
-      Write-Warning "User already exists, skipping: $upn"
-      continue
-    }
-
     $userParams = @{
-      AccountEnabled    = $true
-      DisplayName       = $display
-      GivenName         = $u.First
-      Surname           = $u.Last
-      UserPrincipalName = $upn
-      MailNickname      = $mailName
-      UsageLocation     = "US"
-      PasswordProfile   = $passwordProfile
+      accountEnabled    = $accountEnabled
+      givenName         = $u.First
+      surname           = $u.Last
+      displayName       = $display
+      userPrincipalName = $upn
+      mailNickname      = $mailName
+      usageLocation     = $usageLocation
+      passwordProfile   = $passwordProfile
     }
 
-    New-MgUser @userParams | Out-Null
+    # add optional fields if exists
+    if ($u.JobTitle) { $userParams.jobTitle = $u.JobTitle }
+    if ($u.Department) { $userParams.department = $u.Department }
+    if ($u.OfficeLocation) { $userParams.officeLocation = $u.OfficeLocation }
+    if ($u.CompanyName) { $userParams.companyName = $u.CompanyName }
+
+    if ($null -ne $existing) {
+      if (-not $UpdateExistingUsers) {
+        Write-Warning "User already exists, skipping: $upn"
+        continue
+      }
+
+      # remove fields that can't be updated
+      $updateParams = $userParams.Clone()
+      $updateParams.Remove('userPrincipalName')
+      $updateParams.Remove('mailNickname')
+
+      Update-MgUser -UserId $existing.Id -BodyParameter $updateParams
+      Write-Host "  $display ($upn)...✅"
+      Write-Host "                      ******      " -ForegroundColor Yellow
+    }
+    else {
+      # create user
+      Write-Host ("`n" + "=" * 60) -ForegroundColor DarkGray
+      Write-Host "CREATING USER ACCOUNTS" -ForegroundColor Yellow
+      Write-Host ("=" * 60) -ForegroundColor DarkGray
+      Write-Host ""
+
+      New-MgUser @userParams | Out-Null
+
+      Write-Host "  $display ($upn)...✅"
+      Write-Host "                      ******      " -ForegroundColor Green
+    }
   }
   catch {
-    Write-Error "Failed creating user $upn : $($_.Exception.Message)"
+    Write-Error "Failed creating/updating user $upn : $($_.Exception.Message)"
   }
 }
+
+if ($UpdateExistingUsers) {
+  Write-Host "`n✅ User updates complete!`n" -ForegroundColor Green
+  Disconnect-ExchangeOnline -Confirm:$false | Out-Null
+  Disconnect-MgGraph | Out-Null
+  return
+}
+
 # lil buffer to let users sync before updating user properties
 Write-Host "`n ...Waiting for users to sync across M365 services..." -ForegroundColor Magenta
 Start-Sleep -Seconds 15
 
 # ----------- create rooms ----------
-
 <#
   teams rooms resource account is hybrid object:
     → entra id for user/account (identity/licensing)
@@ -460,7 +583,7 @@ if (-not [string]::IsNullOrWhiteSpace($PhotoFolderPath) -and (Test-Path $PhotoFo
       }
     }
     else {
-      Write-Host "  No photo found for $Alias → expected $Alias.png/.jpg/.jpeg)"
+      Write-Host "`n  No photo found for $Alias → expected $Alias.png/.jpg/.jpeg)" -ForegroundColor Red
     }
   }
 

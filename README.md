@@ -11,6 +11,7 @@ Transforms your CDX tenant by:
 - **Configuring** permissive room calendars for demos (auto-accept, unlimited conflicts, 24/7)
 - **Personalizing** profile photos for users and rooms
 - **Assigning** teams Rooms and enterprise user licenses automatically
+- **Updating** user properties (optional with `-UpdateExistingUsers` flag)
 
 ## Requirements
 
@@ -33,6 +34,9 @@ Transforms your CDX tenant by:
 
    # or reset tenant first (⚠️ DELETES ALL NON-ADMIN USERS)
    pwsh ./user-room-creation.ps1 -ResetTenant
+
+   # or update properties on existing users
+   pwsh ./user-room-creation.ps1 -UpdateExistingUsers
    ```
 
 ## Configuration
@@ -55,8 +59,12 @@ Used for all demo users and rooms. To use different password for rooms: `$Defaul
 
 ```powershell
 $Users = @(
-  @{ First = "admiral"; Last = "ackbar"; Alias = "ackbar" },
-  @{ First = "boba"; Last = "fett"; Alias = "boba" }
+  @{ First = "admiral"; Last = "ackbar"; Alias = "ackbar"; JobTitle = "fleet commander"; Department = "fleet command"
+    OfficeLocation = "star cruiser command"
+    AccountEnabled = $true },
+  @{ First = "boba"; Last = "fett"; Alias = "boba"; JobTitle = "daimyo"; Department = "mos espa operations"
+    OfficeLocation = "jabba's palace"
+    AccountEnabled = $true }
   # add/remove/modify as needed
 )
 ```
