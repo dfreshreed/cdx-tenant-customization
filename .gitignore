@@ -1,14 +1,14 @@
 # macOS
 .DS_Store
 
-# PowerShell local/output artifacts
+# pwsh
 *.clixml
 *.log
 *.tmp
 *.bak
 *.ps1xml
 
-# Secrets / local env
+# local env
 .env
 .env.*
 secrets.*
