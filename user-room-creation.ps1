@@ -42,7 +42,7 @@ if ($ResetTenant -and $UpdateExistingUsers) {
 }
 
 # -- config
-$Domain = "M365x12953264.onmicrosoft.com"
+$Domain = "M365MCP12345.onmicrosoft.com"
 
 $DefaultPassword = "PolyDemo12!" # fixed pw for all demo users/rooms
 $DefaultRoomPassword = $DefaultPassword # different pw for rooms. ex: $DefaultRoomPassword = "wutEvrUw@nt"
