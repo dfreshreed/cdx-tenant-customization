@@ -244,7 +244,8 @@ $AospProfiles = @(
 function Get-ValidatedAlias {
   param(
     [Parameter(Mandatory)] [string]$Value,
-    [Parameter(Mandatory)] [string]$Label
+    [Parameter(Mandatory)] [string]$Label,
+    [switch]$AllowHyphens
   )
 
   if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -252,9 +253,15 @@ function Get-ValidatedAlias {
   }
 
   $alias = $Value.ToLower()
+  $pattern = if ($AllowHyphens) { '^[a-z0-9_-]+$' } else { '^[a-z0-9]+$' }
 
-  if ($alias -notmatch '^[a-z0-9]+$') {
-    throw "$Label '$Value' becomes '$alias' which has invalid characters. Use only letters/numbers (no spaces, hyphens, punctuation)"
+  if ($alias -notmatch $pattern) {
+    if ($AllowHyphens) {
+      throw "$Label '$Value' becomes '$alias' which has invalid characters. Use letters, numbers, hyphens, or underscores (no spaces or other punctuation)"
+    }
+    else {
+      throw "$Label '$Value' becomes '$alias' which has invalid characters. Use only letters/numbers (no spaces, hyphens, punctuation)"
+    }
   }
   return $alias
 }
@@ -849,17 +856,18 @@ if (-not $SkipGroups) {
 
   foreach ($g in $Groups) {
     $ism365 = $g.Type -eq "M365"
+    $nickname = Get-ValidatedAlias -Value $g.Nickname -Label "Group nickname" -AllowHyphens
 
     $groupParams = @{
       displayName     = $g.DisplayName
-      mailNickname    = $g.Nickname
+      mailNickname    = $nickname
       securityEnabled = $true
       mailEnabled     = $ism365
       groupTypes      = if ($ism365) { @("Unified") } else { @() }
     }
 
     try {
-      $existing = Get-MgGroup -Filter "mailNickname eq '$($g.Nickname)'" -ErrorAction SilentlyContinue
+      $existing = Get-MgGroup -Filter "mailNickname eq '$($nickname)'" -ErrorAction SilentlyContinue
       if ($existing) {
         $group = $existing
       }
