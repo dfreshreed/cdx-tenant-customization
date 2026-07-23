@@ -1018,7 +1018,7 @@ if (-not $SkipLicensing -and -not $SkipRooms) {
 
   $roomLicenseParams = @{
     UserPrincipalNames    = $roomUpns
-    SkuPartNumberPatterns = @("Teams_Rooms_Pro_without")
+    SkuPartNumberPatterns = @("Teams_Rooms_Pro")
     LicenseType           = "Room"
   }
   Set-UserLicense @roomLicenseParams
