@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented here.
 
+## [0.3.1] - 2026-07-23
+
+### Added
+
+- Add `-AllowHyphens` switch to `Get-ValidatedAlias`
+- Add Group `Nickname` validation guard before group creation
+
+### Changed
+
+- README: tagged each Configuration/Customization section Required vs Optional, matching script/Graph API enforcement
+- README: documented missing `Roles`, `CompanyName`, and `UsageLocation` user object fields
+- README: added Entra password complexity note under "Set Password"
+- README: updated Group `Nickname` docs to reflect validation (letters, numbers, hyphens, underscores)
+
+### Fixed
+
+- Room licensing SKU pattern broadened from `Teams_Rooms_Pro_without` to `Teams_Rooms_Pro` » previously only matched the "without Audio Conferencing" free-trial SKU
+
+---
+
 ## [0.3.0] - 2026-04-10
 
 ### Added
@@ -33,13 +53,13 @@ All notable changes to this project will be documented here.
 - User data reformatted to multi-line aligned hashtable style for improved readability
 - Module list expanded and reordered in both `$requiredModules` and `Import-Module` calls
 - README: "Run What You Want" example table, `---` dividers, blockquote-style notes, inline alias rule examples
-- README: "Add Photos" renumbered from section 5 → 7 to accommodate new Groups and AOSP sections
+- README: "Add Photos" moved from section 5 » 7 to accommodate new Groups and AOSP sections
 - README: troubleshooting tip updated with skip-flag combo for photo-only retry
 - `.gitignore` comment cleanup
 
 ### Fixed
 
-- `Write=Error` typo in module installation block → `Write-Error`
+- `Write=Error` typo in module installation block » `Write-Error`
 
 ---
 
@@ -47,11 +67,11 @@ All notable changes to this project will be documented here.
 
 ### Added
 
-- `-UpdateExistingUsers` switch — updates properties on existing users instead of skipping them; exits early before room/group/licensing steps
+- `-UpdateExistingUsers` switch » updates properties on existing users instead of skipping them; exits early before room/group/licensing steps
 - Optional user object fields: `JobTitle`, `Department`, `OfficeLocation`, `AccountEnabled`, `UsageLocation`, `CompanyName`
 - `Directory.AccessAsUser.All` scope added to `Connect-MgGraph` call
 - Per-user error handling in `Set-UserLicense` (try/catch per user instead of bulk)
-- Already-licensed detection in `Set-UserLicense` — skips users who already have all required SKUs and reports count
+- Already-licensed detection in `Set-UserLicense` » skips users who already have all required SKUs and reports count
 
 ### Changed
 

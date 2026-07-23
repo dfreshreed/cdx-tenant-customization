@@ -4,14 +4,14 @@ Automate the setup of your Microsoft CDX demo tenant with custom users and Teams
 
 ## What It Does
 
-Empowers you to customize your CDX tenant by:
+Empowers you to customize your CDX tenant:
 
-- **Removing** default CDX users and rooms (optional with `-ResetTenant` flag)
-- **Creating** custom-themed users and Microsoft Teams Rooms
-- **Configuring** permissive room calendars for demos (auto-accept, unlimited conflicts, 24/7)
-- **Personalizing** profile photos for users and rooms
-- **Assigning** teams Rooms and enterprise user licenses automatically
-- **Updating** user properties (optional with `-UpdateExistingUsers` flag)
+- **Remove** default CDX users and rooms (optional with `-ResetTenant` flag)
+- **Create** custom-themed users and Microsoft Teams Rooms
+- **Configure** permissive room calendars for demos (auto-accept, unlimited conflicts, 24/7)
+- **Personalize** profile photos for users and rooms
+- **Assign** Teams Rooms Pro and Enterprise user licenses automatically
+- **Update** user properties (optional with `-UpdateExistingUsers` flag)
 
 ## Run What You Want
 
@@ -19,7 +19,7 @@ Empowers you to customize your CDX tenant by:
 | ------------------------------------------ | ----------------------------------------------- |
 | Full run with your changes, keep CDX users | no flags                                        |
 | Full run with user removal first           | -ResetTenant                                    |
-| Update user props only + re-run licensing  | -UpdateExistingUsers                            |
+| Update user props + re-run licensing       | -UpdateExistingUsers                            |
 | Update user props only                     | -UpdateExistingUsers -SkipGroups -SkipLicensing |
 | Re-run groups + CA policy only             | -SkipUsers -SkipRooms -SkipLicensing            |
 | Re-run licensing only                      | -SkipUsers -SkipRooms -SkipGroups               |
@@ -45,7 +45,10 @@ Empowers you to customize your CDX tenant by:
 ## Quick Start
 
 1. **Install PowerShell 7+** (if needed)
-2. **Edit the script** - Update `$Domain`, `$Password`, customize `$Users/$Rooms/$Groups`, and add profile photos (optional)
+2. **Edit the script:**
+   - Update `$Domain` and `$Password`
+   - Customize `$Users/$Rooms/$Groups`
+   - Add profile photos (optional)
 3. **Run it:**
 
    ```powershell
@@ -61,23 +64,29 @@ Empowers you to customize your CDX tenant by:
 
 ---
 
-## Configuration Options
+## Configuration and Customization
 
-### 1. Set Your Domain
+### 1. Set Your Domain (Required)
 
 ```powershell
 $Domain = "M365x12345678.onmicrosoft.com"  # change to your CDX tenant
 ```
 
-### 2. Set Password
+### 2. Set Password (Required, default provided)
 
 ```powershell
 $DefaultPassword = "YourDemoPassword123!" # used for all user and room accounts
 ```
 
-To use a different password for rooms: `$DefaultRoomPassword = "differentpassword"`
+To use a different password for rooms _(optional: falls back to `$DefaultPassword`)_: `$DefaultRoomPassword = "differentpassword"`
 
-### 3. Customize Users
+> **Note:** Must meet Entra ID password complexity requirements (8+ characters | at least 3 of 4: uppercase, lowercase, number, symbol).
+>
+> A non-compliant password fails user/room creation with a Graph error.
+
+### 3. Customize Users (Required)
+
+Creates UPN as: `alias@domain` (e.g., `ackbar@M365x12345678.onmicrosoft.com`)
 
 ```powershell
 $Users = @(
@@ -91,9 +100,14 @@ $Users = @(
 )
 ```
 
-Creates UPN as: `alias@domain` (e.g., `ackbar@M365x12345678.onmicrosoft.com`)
+- **`Alias`:** required; validated as alphanumeric-only before the script runs
+- **`First`, `Last`:** required in practice (used to build the display name); not validated, so a blank value won't error but creates an incomplete display name
+- **`JobTitle`, `Department`, `OfficeLocation`, `CompanyName`:** optional, only applied if present
+- **`AccountEnabled`:** optional, defaults to `$true` if omitted
+- **`UsageLocation`:** optional, defaults to `"US"` if omitted
+- **`Roles`:** optional, assigns Entra directory roles after creation, e.g. `Roles = @("Global Administrator")`
 
-### 4. Customize Rooms
+### 4. Customize Rooms (Required)
 
 ```powershell
 $Rooms = @(
@@ -102,7 +116,9 @@ $Rooms = @(
 )
 ```
 
-### 5. Customize Groups
+Each entry is validated the same as user aliases (alphanumeric only).
+
+### 5. Customize Groups (Optional, skip entirely with `-SkipGroups`)
 
 ```powershell
 $Groups = @(
@@ -116,16 +132,20 @@ $Groups = @(
 )
 ```
 
-- **`Type`**
+- **`DisplayName`, `Nickname`:** required by Microsoft Graph to create a group
+  - `Nickname` is validated like user/room aliases. Allows letters, numbers, hyphens, and underscores (no spaces or other punctuation)
+- **`Type`:** optional, defaults to Security-like behavior if omitted
   - `Security` for identity/access control/CA policy
   - `M365` for Microsoft 365 "collaboration" groups (shared mailbox, sharepoint, Teams)
-- **`MfaExclude`**
+- **`MfaExclude`:** optional, defaults to not-excluded if omitted
   - when `$true`, the group is added to the CDX MFA Conditional Access policy exclusion list
   - use for shared device accounts or demo accounts that shouldn't be prompted for MFA
-- **`Members`**
+- **`Members`:** optional; omitting creates an empty group
   - use the alias of users or rooms defined in `$Users` / `$Rooms`
 
-### 6. Configure AOSP Enrollment Profile
+### 6. Configure AOSP Enrollment Profile (Optional — skip entirely with `-SkipAosp`)
+
+`AospProfiles` is pre-populated with the default selections (you'd choose in the admin portal). `displayName` and `description` can be changed; **all other fields are required by the Intune API** for this enrollment mode and should stay as written.
 
 ```powershell
 $AospProfiles = @(
@@ -159,7 +179,7 @@ The script opens your browser for authentication:
 1. **Sign in** with CDX admin account (`admin@tenant.onmicrosoft.com`)
 2. **Accept permissions** when prompted
 3. **Token storage:**
-   - **macOS:** Stored in Keychain - Click "Always Allow" to avoid re-auth (if running script multiple times in a row)
+   - **macOS:** Stored in Keychain; Click "Always Allow" to avoid re-auth (if running script multiple times in a row)
    - **Windows:** Stored in Credential Manager. No prompt needed
 
 ## What Happens During Execution
@@ -189,7 +209,7 @@ The script opens your browser for authentication:
 - Exchange mailboxes with calendar auto-processing
 - Wide-open settings for demo flexibility: auto-accept, unlimited conflicts, 24/7, 365-day booking
 - No password expiration
-- Teams Rooms Pro without Audio Conferencing license assigned (if you completed the free trial step of CDX tenant creation)
+- Teams Rooms Pro license assigned (matches any Teams Rooms Pro SKU in the tenant, with or without Audio Conferencing)
 
 **Photo Upload:**
 
@@ -202,8 +222,17 @@ The script opens your browser for authentication:
 
 ## Alias Rules
 
+### Users and Rooms
+
 ✅ **Valid:** Letters and numbers only (a-z, 0-9) -`hansolo`, `c3p0`, `rey`
+
 ❌ **Invalid:** Spaces, hyphens, special characters -`han-solo`, `c-3p0`, `rey skywalker`
+
+### Group Nicknames
+
+✅ **Valid:** Letters, numbers, hyphens, underscores -`dev-ops`, `cyber_sec`, `prodmgmt`
+
+❌ **Invalid:** Spaces, special characters -`dev@ops`, `cyber sec`
 
 ---
 
@@ -215,14 +244,14 @@ The script opens your browser for authentication:
 
 ### **Photo uploads fail**
 
-- Check: filename matches alias, 648×648px recommended, PNG/JPG/JPEG format
-- Photos may fail if M365 services are slow.
+- Double Check: filename matches alias, 648×648px recommended, PNG/JPG/JPEG format
+- Photos may fail if M365 services are slow
 - re-run with `-SkipUsers -SkipRooms -SkipGroups -SkipLicensing` to retry just photos
 
-### **"Sync to Places failed" warnings**
+### **`Sync to Places failed` warnings**
 
-- Safe to ignore. Non-critical Microsoft Places sync
-- Rooms are created successfully (look for ✅)
+- Safe to ignore; Non-critical Microsoft Places sync
+- Rooms are still created successfully (look for ✅)
 
 ### **Room creation slow (20-30 sec each)**
 
