@@ -475,7 +475,7 @@ catch {
 
 # -- connect EXO
 try {
-  Connect-ExchangeOnline -ErrorAction Stop | Out-Null
+  Connect-ExchangeOnline -Device -ErrorAction Stop | Out-Null
 }
 catch {
   throw "Exchange connection failed with error: $($_.Exception.Message)"
