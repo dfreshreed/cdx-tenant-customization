@@ -879,7 +879,8 @@ if (-not $SkipGroups) {
 
       foreach ($alias in $g.Members) {
         try {
-          $userId = (Get-MgUser -UserId "$alias@$Domain" -ErrorAction SilentlyContinue)?.Id
+          $existingUser = Get-MgUser -UserId "$alias@$Domain" -ErrorAction SilentlyContinue
+          $userId = if ($existingUser) { $existingUser.Id } else { $null }
           if (-not $userId) {
             Write-Warning "User not found » $alias"
             continue
